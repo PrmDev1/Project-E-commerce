@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import SocialProviders from "./SocialProviders";
-import {useRouter} from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Props = {
   mode: "sign-in" | "sign-up";
@@ -13,6 +13,10 @@ type Props = {
 export default function AuthForm({ mode, onSubmit }: Props) {
   const [show, setShow] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
+  const redirectTo = nextPath && nextPath.startsWith("/") ? nextPath : "/";
+  const switchHref = mode === "sign-in" ? `/sign-up?next=${encodeURIComponent(redirectTo)}` : `/sign-in?next=${encodeURIComponent(redirectTo)}`;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -22,7 +26,7 @@ export default function AuthForm({ mode, onSubmit }: Props) {
     try {
       const result = await onSubmit(formData);
 
-      if(result?.ok) router.push("/");
+      if (result?.ok) router.push(redirectTo);
     } catch (e) {
       console.log("error", e);
     }
@@ -33,7 +37,7 @@ export default function AuthForm({ mode, onSubmit }: Props) {
       <div className="text-center">
         <p className="text-caption text-dark-700">
           {mode === "sign-in" ? "Don’t have an account? " : "Already have an account? "}
-          <Link href={mode === "sign-in" ? "/sign-up" : "/sign-in"} className="underline">
+          <Link href={switchHref} className="underline">
             {mode === "sign-in" ? "Sign Up" : "Sign In"}
           </Link>
         </p>

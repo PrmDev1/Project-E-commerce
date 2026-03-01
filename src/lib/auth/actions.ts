@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { guests } from "@/lib/db/schema/index";
 import { and, eq, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { mergeGuestCartToUser } from "@/lib/actions/cart";
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -77,7 +78,9 @@ export async function signUp(formData: FormData) {
     },
   });
 
-  await migrateGuestToUser();
+  if (res.user?.id) {
+    await migrateGuestToUser(res.user.id);
+  }
   return { ok: true, userId: res.user?.id };
 }
 
@@ -101,7 +104,9 @@ export async function signIn(formData: FormData) {
     },
   });
 
-  await migrateGuestToUser();
+  if (res.user?.id) {
+    await migrateGuestToUser(res.user.id);
+  }
   return { ok: true, userId: res.user?.id };
 }
 
@@ -124,15 +129,24 @@ export async function signOut() {
 }
 
 export async function mergeGuestCartWithUserCart() {
-  await migrateGuestToUser();
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (session?.user?.id) {
+    await migrateGuestToUser(session.user.id);
+  }
+
   return { ok: true };
 }
 
-async function migrateGuestToUser() {
+async function migrateGuestToUser(userId: string) {
+  await mergeGuestCartToUser(userId);
+
   const cookieStore = await cookies();
-  const token = (await cookieStore).get("guest_session")?.value;
+  const token = cookieStore.get("guest_session")?.value;
   if (!token) return;
 
   await db.delete(guests).where(eq(guests.sessionToken, token));
-  (await cookieStore).delete("guest_session");
+  cookieStore.delete("guest_session");
 }

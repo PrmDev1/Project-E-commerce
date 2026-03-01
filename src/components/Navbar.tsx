@@ -1,144 +1,104 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCartStore } from "@/store/cart-store";
+import { useEffect, useState, useTransition } from "react";
+import { getCart } from "@/lib/actions/cart";
+import { useCartStore } from "@/store/cart.store";
 
-const navLinks = [
-  { label: "Men", href: "#" },
-  { label: "Women", href: "#" },
-  { label: "Kids", href: "#" },
-  { label: "Collections", href: "#" },
-  { label: "Contact", href: "#" },
-];
+const NAV_LINKS = [
+  { label: "Men", href: "/products?gender=men" },
+  { label: "Women", href: "/products?gender=women" },
+  { label: "Kids", href: "/products?gender=unisex" },
+  { label: "Collections", href: "/collections" },
+  { label: "Contact", href: "/contact" },
+] as const;
 
 export default function Navbar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const totalItems = useCartStore((s) => s.totalItems);
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const itemCount = useCartStore((state) => state.itemCount);
+  const setCart = useCartStore((state) => state.setCart);
+
+  useEffect(() => {
+    startTransition(async () => {
+      const cart = await getCart();
+      setCart(cart);
+    });
+  }, [setCart]);
+
+  const cartLabel = `My Cart (${itemCount})`;
 
   return (
-    <header className="sticky top-0 z-50 bg-light-100 border-b border-light-300">
+    <header className="sticky top-0 z-50 bg-light-100">
       <nav
-        className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4 lg:px-12"
-        aria-label="Primary navigation"
+        className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
+        aria-label="Primary"
       >
-        {/* Logo */}
-        <Link href="/" aria-label="Home" className="shrink-0">
-          <Image
-            src="/logo.svg"
-            alt="Nike"
-            width={80}
-            height={29}
-            priority
-            className="invert"
-          />
+        <Link href="/" aria-label="Nike Home" className="flex items-center">
+          <Image src="/logo.svg" alt="Nike" width={28} height={28} priority className="invert" />
         </Link>
 
-        {/* Desktop links */}
-        <ul className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <li key={link.label}>
-              <a
-                href={link.href}
-                className="text-body font-[var(--text-body-medium--font-weight)] leading-[var(--text-body--line-height)] text-dark-900 transition-colors hover:text-dark-700"
+        <ul className="hidden items-center gap-8 md:flex">
+          {NAV_LINKS.map((l) => (
+            <li key={l.href}>
+              <Link
+                href={l.href}
+                className="text-body text-dark-900 transition-colors hover:text-dark-700"
               >
-                {link.label}
-              </a>
+                {l.label}
+              </Link>
             </li>
           ))}
         </ul>
 
-        {/* Right actions */}
-        <div className="hidden md:flex items-center gap-6">
-          <a
-            href="#"
-            className="text-body font-[var(--text-body-medium--font-weight)] leading-[var(--text-body--line-height)] text-dark-900 transition-colors hover:text-dark-700"
-          >
+        <div className="hidden items-center gap-6 md:flex">
+          <button className="text-body text-dark-900 transition-colors hover:text-dark-700">
             Search
-          </a>
-          <a
-            href="#"
-            className="text-body font-[var(--text-body-medium--font-weight)] leading-[var(--text-body--line-height)] text-dark-900 transition-colors hover:text-dark-700"
-          >
-            My Cart ({totalItems()})
-          </a>
+          </button>
+          <Link href="/cart" className="text-body text-dark-900 transition-colors hover:text-dark-700">
+            {isPending ? "My Cart" : cartLabel}
+          </Link>
         </div>
 
-        {/* Mobile hamburger */}
         <button
           type="button"
-          className="md:hidden p-2 text-dark-900"
-          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="inline-flex items-center justify-center rounded-md p-2 md:hidden"
+          aria-controls="mobile-menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
         >
-          {mobileMenuOpen ? (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          ) : (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          )}
+          <span className="sr-only">Toggle navigation</span>
+          <span className="mb-1 block h-0.5 w-6 bg-dark-900"></span>
+          <span className="mb-1 block h-0.5 w-6 bg-dark-900"></span>
+          <span className="block h-0.5 w-6 bg-dark-900"></span>
         </button>
       </nav>
 
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-light-300 bg-light-100">
-          <ul className="flex flex-col px-6 py-4 gap-4">
-            {navLinks.map((link) => (
-              <li key={link.label}>
-                <a
-                  href={link.href}
-                  className="block text-body font-[var(--text-body-medium--font-weight)] text-dark-900 hover:text-dark-700 transition-colors"
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-            <li className="border-t border-light-300 pt-4">
-              <a
-                href="#"
-                className="block text-body font-[var(--text-body-medium--font-weight)] text-dark-900 hover:text-dark-700"
+      <div
+        id="mobile-menu"
+        className={`border-t border-light-300 md:hidden ${open ? "block" : "hidden"}`}
+      >
+        <ul className="space-y-2 px-4 py-3">
+          {NAV_LINKS.map((l) => (
+            <li key={l.href}>
+              <Link
+                href={l.href}
+                className="block py-2 text-body text-dark-900 hover:text-dark-700"
+                onClick={() => setOpen(false)}
               >
-                Search
-              </a>
+                {l.label}
+              </Link>
             </li>
-            <li>
-              <a
-                href="#"
-                className="block text-body font-[var(--text-body-medium--font-weight)] text-dark-900 hover:text-dark-700"
-              >
-                My Cart ({totalItems()})
-              </a>
-            </li>
-          </ul>
-        </div>
-      )}
+          ))}
+          <li className="flex items-center justify-between pt-2">
+            <button className="text-body">Search</button>
+            <Link href="/cart" className="text-body" onClick={() => setOpen(false)}>
+              {isPending ? "My Cart" : cartLabel}
+            </Link>
+          </li>
+        </ul>
+      </div>
     </header>
   );
 }
