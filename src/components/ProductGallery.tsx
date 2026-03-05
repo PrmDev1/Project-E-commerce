@@ -1,6 +1,4 @@
 "use client";
-
-import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { useVariantStore } from "@/store/variant";
@@ -32,10 +30,11 @@ export default function ProductGallery({
     [variants]
   );
 
+  const selectedVariantIndex = useVariantStore((s) => s.selectedByProduct[productId]);
   const variantIndex =
-    useVariantStore(
-      (s) => s.selectedByProduct[productId] ?? Math.min(initialVariantIndex, Math.max(validVariants.length - 1, 0))
-    );
+    typeof selectedVariantIndex === "number"
+      ? Math.max(0, Math.min(selectedVariantIndex, Math.max(validVariants.length - 1, 0)))
+      : Math.min(initialVariantIndex, Math.max(validVariants.length - 1, 0));
 
   const images = validVariants[variantIndex]?.images?.filter(isValidSrc) ?? [];
   const [brokenImages, setBrokenImages] = useState<Record<string, true>>({});
@@ -95,13 +94,13 @@ export default function ProductGallery({
             onClick={() => setIndex(i)}
             className={`relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg ring-1 ring-light-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[--color-dark-500] ${i === activeIndex ? "ring-[--color-dark-500]" : ""}`}
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={src}
               alt={`Thumbnail ${i + 1}`}
-              fill
-              sizes="64px"
-              className="object-cover"
+              className="h-full w-full object-cover"
               onError={() => handleImageError(src)}
+              loading="lazy"
             />
           </button>
         ))}
@@ -110,13 +109,11 @@ export default function ProductGallery({
       <div ref={mainRef} className="order-1 relative w-full h-[500px] overflow-hidden rounded-xl bg-light-200 lg:order-2">
         {safeImages.length > 0 ? (
           <>
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={safeImages[activeIndex]}
               alt="Product image"
-              fill
-              sizes="(min-width:1024px) 720px, 100vw"
-              className="object-cover"
-              priority
+              className="h-full w-full object-cover"
               onError={() => handleImageError(safeImages[activeIndex])}
             />
 

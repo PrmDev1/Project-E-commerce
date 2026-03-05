@@ -1,8 +1,13 @@
-import  Card  from "@/components/Card";
-import Filters from "@/components/Filters";
-import Sort from "@/components/Sort";
+import { Card, Filters, Sort } from "@/components";
 import { parseFilterParams } from "@/lib/utils/query";
 import { getAllProducts } from "@/lib/actions/product";
+
+function formatTHB(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "THB",
+  }).format(value);
+}
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -17,18 +22,25 @@ export default async function ProductsPage({
   const { products, totalCount } = await getAllProducts(parsed);
 
   const activeBadges: string[] = [];
-  (sp.gender ? (Array.isArray(sp.gender) ? sp.gender : [sp.gender]) : []).forEach((g) =>
-    activeBadges.push(String(g)[0].toUpperCase() + String(g).slice(1))
-  );
-  (sp.size ? (Array.isArray(sp.size) ? sp.size : [sp.size]) : []).forEach((s) => activeBadges.push(`Size: ${s}`));
-  (sp.color ? (Array.isArray(sp.color) ? sp.color : [sp.color]) : []).forEach((c) =>
-    activeBadges.push(String(c)[0].toUpperCase() + String(c).slice(1))
-  );
-  (sp.price ? (Array.isArray(sp.price) ? sp.price : [sp.price]) : []).forEach((p) => {
-    const [min, max] = String(p).split("-");
-    const label = min && max ? `$${min} - $${max}` : min && !max ? `Over $${min}` : `$0 - $${max}`;
-    activeBadges.push(label);
-  });
+  const searchKeyword = typeof sp.search === "string" ? sp.search : Array.isArray(sp.search) ? sp.search[0] : undefined;
+  const brand = typeof sp.brand === "string" ? sp.brand : Array.isArray(sp.brand) ? sp.brand[0] : undefined;
+  const gender = typeof sp.gender === "string" ? sp.gender : Array.isArray(sp.gender) ? sp.gender[0] : undefined;
+  const priceMax =
+    typeof sp.priceMax === "string" ? sp.priceMax : Array.isArray(sp.priceMax) ? sp.priceMax[0] : undefined;
+
+  if (searchKeyword) {
+    activeBadges.push(`Search: ${searchKeyword}`);
+  }
+  if (brand) {
+    activeBadges.push(`Brand: ${brand}`);
+  }
+  if (gender) {
+    activeBadges.push(`Gender: ${gender}`);
+  }
+  if (priceMax) {
+    const parsedPriceMax = Number(priceMax);
+    activeBadges.push(`Max: ${Number.isFinite(parsedPriceMax) ? formatTHB(parsedPriceMax) : `THB ${priceMax}`}`);
+  }
 
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -62,7 +74,7 @@ export default async function ProductsPage({
               {products.map((p) => {
                 const price =
                   p.minPrice !== null && p.maxPrice !== null && p.minPrice !== p.maxPrice
-                    ? `$${p.minPrice.toFixed(2)} - $${p.maxPrice.toFixed(2)}`
+                    ? `${formatTHB(p.minPrice)} - ${formatTHB(p.maxPrice)}`
                     : p.minPrice !== null
                     ? p.minPrice
                     : undefined;
@@ -71,7 +83,7 @@ export default async function ProductsPage({
                     key={p.id}
                     title={p.name}
                     subtitle={p.subtitle ?? undefined}
-                    imageSrc={p.imageUrl ?? "/shoes/shoe-1.jpg"}
+                    imageSrc={p.imageUrl ?? "/shoes/shoe-5.avif"}
                     price={price}
                     href={`/products/${p.id}`}
                   />

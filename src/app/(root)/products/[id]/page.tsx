@@ -13,7 +13,10 @@ type GalleryVariant = { color: string; images: string[] };
 
 function formatPrice(price: number | null | undefined) {
   if (price === null || price === undefined) return undefined;
-  return `$${price.toFixed(2)}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "THB",
+  }).format(price);
 }
 
 function NotFoundBlock() {
@@ -172,7 +175,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
 
           <ColorSwatches productId={product.id} variants={galleryVariants} />
-          <SizePicker />
+          <SizePicker productId={product.id} />
 
           <div className="flex flex-col gap-3">
             <AddToCartButton productId={product.id} variantIds={product.variants.map((variant) => variant.id)} />

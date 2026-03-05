@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ShieldCheck } from "lucide-react";
 import { createStripeCheckoutSession } from "@/lib/actions/checkout";
@@ -13,7 +14,7 @@ type Props = {
 function formatCents(cents: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: "THB",
   }).format(cents / 100);
 }
 
@@ -39,6 +40,17 @@ export default function CartSummary({ cartId, subtotalCents, disabled = false }:
   return (
     <aside className="h-fit rounded-xl border border-light-300 bg-light-100 p-5">
       <h2 className="text-heading-4 text-dark-900">Summary</h2>
+
+      <div className="mt-4 rounded-lg border border-light-300 bg-light-100 p-3">
+        <p className="text-caption text-dark-700">Shipping Address</p>
+        <Link
+          href="/addresses"
+          className="mt-2 inline-flex w-full items-center justify-center rounded-full border border-dark-900 px-4 py-2 text-body-medium text-dark-900 transition hover:bg-light-200"
+        >
+          Manage Addresses
+        </Link>
+      </div>
+
       <div className="mt-4 space-y-2 text-body text-dark-700">
         <div className="flex items-center justify-between">
           <span>Subtotal</span>
@@ -67,7 +79,7 @@ export default function CartSummary({ cartId, subtotalCents, disabled = false }:
 
       <p className="mt-3 inline-flex items-center gap-2 text-caption text-dark-700">
         <ShieldCheck className="h-4 w-4" />
-        Secure payment powered by Stripe
+        Secure checkout
       </p>
 
       {error && <p className="mt-2 text-caption text-red-600">{error}</p>}

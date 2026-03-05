@@ -1,162 +1,151 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
-import { cookies, headers } from "next/headers";
-import Stripe from "stripe";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import {
-  cartItems,
-  carts,
-  colors,
-  guests,
-  productVariants,
-  products,
-  sizes,
-} from "@/lib/db/schema";
-import { stripe } from "@/lib/stripe/client";
-import { mergeSessionsIfNeeded } from "@/lib/utils/mergeSessions";
+import { backendAuthRequest, getBackendCurrentUser, readResponseBody } from "@/lib/auth/backend";
 
-type CheckoutCartItem = {
-  variantId: string;
-  quantity: number;
-  unitAmountCents: number;
-  productName: string;
-  colorName: string | null;
-  sizeName: string | null;
+type BackendCartItem = {
+  cartid?: string;
+  cartId?: string;
 };
 
-const GUEST_COOKIE = "guest_session";
+type BackendAddress = {
+  addressid?: string;
+  addressId?: string;
+  id?: string;
+};
 
-function toCents(value: string | number | null) {
-  if (value === null) return 0;
-  const numeric = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.round(numeric * 100);
-}
+async function getFirstAddressIdFromUsersApi(): Promise<string | null> {
+  const response = await backendAuthRequest("/api/users/addresses", {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
 
-async function getActor() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (session?.user?.id) {
-    return { userId: session.user.id, guestId: null as string | null };
+  if (!response.ok) {
+    return null;
   }
 
-  const token = (await cookies()).get(GUEST_COOKIE)?.value;
-  if (!token) {
-    return { userId: null as string | null, guestId: null as string | null };
+  const { json } = await readResponseBody(response);
+  const addresses = (json?.addresses ?? []) as unknown;
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    return null;
   }
 
-  const guest = await db
-    .select({ id: guests.id })
-    .from(guests)
-    .where(eq(guests.sessionToken, token))
-    .limit(1);
-
-  return {
-    userId: null as string | null,
-    guestId: guest[0]?.id ?? null,
-  };
+  const first = addresses[0] as BackendAddress;
+  const addressId = first.addressid ?? first.addressId ?? first.id;
+  return typeof addressId === "string" && addressId.trim().length > 0 ? addressId.trim() : null;
 }
 
-async function getCheckoutCart(cartId: string): Promise<CheckoutCartItem[]> {
-  const rows = await db
-    .select({
-      variantId: productVariants.id,
-      quantity: cartItems.quantity,
-      price: productVariants.price,
-      salePrice: productVariants.salePrice,
-      productName: products.name,
-      colorName: colors.name,
-      sizeName: sizes.name,
-    })
-    .from(cartItems)
-    .innerJoin(productVariants, eq(productVariants.id, cartItems.productVariantId))
-    .innerJoin(products, eq(products.id, productVariants.productId))
-    .leftJoin(colors, eq(colors.id, productVariants.colorId))
-    .leftJoin(sizes, eq(sizes.id, productVariants.sizeId))
-    .where(eq(cartItems.cartId, cartId));
-
-  return rows
-    .filter((row) => row.quantity > 0)
-    .map((row) => ({
-      variantId: row.variantId,
-      quantity: row.quantity,
-      unitAmountCents: row.salePrice === null ? toCents(row.price) : toCents(row.salePrice),
-      productName: row.productName,
-      colorName: row.colorName,
-      sizeName: row.sizeName,
-    }))
-    .filter((row) => row.unitAmountCents > 0);
+function getErrorMessage(json: Record<string, unknown> | null, fallback: string) {
+  if (json && typeof json.message === "string" && json.message.trim().length > 0) {
+    return json.message;
+  }
+  return fallback;
 }
 
-function getOriginFromHeaders(headerStore: Headers) {
-  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
-  const proto = headerStore.get("x-forwarded-proto") ?? "http";
-  if (!host) {
-    throw new Error("Unable to resolve request host");
+async function getCartIds(userId: string): Promise<string[]> {
+  const cartResponse = await backendAuthRequest(`/api/cart/get-cart/${encodeURIComponent(userId)}`, {
+    method: "GET",
+  });
+
+  if (!cartResponse.ok) {
+    return [];
   }
 
-  return `${proto}://${host}`;
+  const { json } = await readResponseBody(cartResponse);
+  const cartRows = (json?.cart ?? []) as unknown;
+  if (!Array.isArray(cartRows)) return [];
+
+  const ids = new Set<string>();
+  for (const row of cartRows as BackendCartItem[]) {
+    const id = row.cartid ?? row.cartId;
+    if (typeof id === "string" && id.trim().length > 0) {
+      ids.add(id.trim());
+    }
+  }
+
+  return Array.from(ids);
+}
+
+async function getFirstAddressId(userId: string, cartIds: string[]): Promise<string | null> {
+  const fromUsersApi = await getFirstAddressIdFromUsersApi();
+  if (fromUsersApi) {
+    return fromUsersApi;
+  }
+
+  const tryPost = await backendAuthRequest("/api/cart/checkout-details", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ userId, cartIds }),
+  });
+
+  const postBody = await readResponseBody(tryPost);
+
+  if (!tryPost.ok && tryPost.status !== 404 && tryPost.status !== 405) {
+    return null;
+  }
+
+  const fallbackGet =
+    tryPost.ok
+      ? null
+      : await backendAuthRequest("/api/cart/checkout-details", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+
+  const getBody = fallbackGet ? await readResponseBody(fallbackGet) : null;
+
+  const payload = tryPost.ok ? postBody.json : getBody?.json;
+  const addresses = (payload?.checkoutData as Record<string, unknown> | undefined)?.availableAddresses as unknown;
+
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    return null;
+  }
+
+  const first = addresses[0] as BackendAddress;
+  const addressId = first.addressid ?? first.addressId ?? first.id;
+  return typeof addressId === "string" && addressId.trim().length > 0 ? addressId.trim() : null;
 }
 
 export async function createStripeCheckoutSession(cartId: string): Promise<{ url: string }> {
-  if (!cartId) {
-    throw new Error("Cart ID is required");
+  void cartId;
+  const user = await getBackendCurrentUser();
+  if (!user?.id) {
+    throw new Error("Please sign in before checkout");
   }
 
-  await mergeSessionsIfNeeded();
-
-  const actor = await getActor();
-  const ownerPredicate = actor.userId
-    ? eq(carts.userId, actor.userId)
-    : actor.guestId
-      ? eq(carts.guestId, actor.guestId)
-      : sql`false`;
-
-  const ownerCart = await db
-    .select({ id: carts.id, userId: carts.userId })
-    .from(carts)
-    .where(and(eq(carts.id, cartId), ownerPredicate))
-    .limit(1);
-
-  if (ownerCart.length === 0) {
-    throw new Error("Cart not found or not accessible");
-  }
-
-  const cartItemsForCheckout = await getCheckoutCart(cartId);
-
-  if (cartItemsForCheckout.length === 0) {
+  const cartIds = await getCartIds(user.id);
+  if (cartIds.length === 0) {
     throw new Error("Cannot checkout with an empty cart");
   }
 
-  const headerStore = await headers();
-  const origin = getOriginFromHeaders(headerStore);
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItemsForCheckout.map((item) => ({
-    quantity: item.quantity,
-    price_data: {
-      currency: "usd",
-      unit_amount: item.unitAmountCents,
-      product_data: {
-        name: item.productName,
-        description: [item.colorName, item.sizeName].filter(Boolean).join(" · ") || undefined,
-      },
-    },
-  }));
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: lineItems,
-    success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${origin}/cart`,
-    metadata: {
-      cartId,
-      userId: ownerCart[0].userId ?? "",
-    },
-  });
-
-  if (!session.url) {
-    throw new Error("Stripe session URL was not generated");
+  const addressId = await getFirstAddressId(user.id, cartIds);
+  if (!addressId) {
+    throw new Error("Please add a shipping address before checkout");
   }
 
-  return { url: session.url };
+  const createOrderResponse = await backendAuthRequest("/api/cart/create-order", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      userId: user.id,
+      addressId,
+      cartIds,
+    }),
+  });
+
+  const { json } = await readResponseBody(createOrderResponse);
+
+  if (!createOrderResponse.ok) {
+    throw new Error(getErrorMessage(json, "Unable to create order"));
+  }
+
+  const orderId = typeof json?.orderId === "string" ? json.orderId : "";
+  const url = orderId ? `/checkout/success?backend_order_id=${encodeURIComponent(orderId)}` : "/checkout/success";
+
+  return { url };
 }

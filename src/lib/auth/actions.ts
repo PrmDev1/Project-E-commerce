@@ -1,13 +1,24 @@
 "use server";
 
-import {cookies, headers} from "next/headers";
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { guests } from "@/lib/db/schema/index";
 import { and, eq, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { mergeGuestCartToUser } from "@/lib/actions/cart";
+import {
+  applyBackendResponseCookies,
+  backendAuthRequest,
+  getBackendCurrentUser,
+  readResponseBody,
+} from "@/lib/auth/backend";
+
+export type AuthActionResult = {
+  ok: boolean;
+  userId?: string;
+  error?: string;
+};
 
 const COOKIE_OPTIONS = {
   httpOnly: true as const,
@@ -19,7 +30,12 @@ const COOKIE_OPTIONS = {
 
 const emailSchema = z.string().email();
 const passwordSchema = z.string().min(8).max(128);
-const nameSchema = z.string().min(1).max(100);
+const usernameSchema = z.string().min(3).max(100);
+const roleSchema = z.enum(["user", "admin"]);
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value: string) => UUID_REGEX.test(value);
 
 export async function createGuestSession() {
   const cookieStore = await cookies();
@@ -58,30 +74,92 @@ export async function guestSession() {
 const signUpSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  name: nameSchema,
+  username: usernameSchema,
+  role: roleSchema,
 });
 
-export async function signUp(formData: FormData) {
+export async function signUp(formData: FormData): Promise<AuthActionResult> {
   const rawData = {
-    name: formData.get('name') as string,
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+    username: (formData.get("username") ?? formData.get("name")) as string,
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+    role: (formData.get("role") ?? "user") as string,
+  };
+
+  const parsed = signUpSchema.safeParse(rawData);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: issue?.message ?? "Invalid sign-up input" };
   }
 
-  const data = signUpSchema.parse(rawData);
+  const data = parsed.data;
 
-  const res = await auth.api.signUpEmail({
-    body: {
-      email: data.email,
-      password: data.password,
-      name: data.name,
-    },
-  });
+  try {
+    const registerEndpoints = ["/api/users/register", "/api/auth/register"];
+    let response: Response | null = null;
 
-  if (res.user?.id) {
-    await migrateGuestToUser(res.user.id);
+    for (const endpoint of registerEndpoints) {
+      const candidate = await backendAuthRequest(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          username: data.username,
+          email: data.email,
+          password: data.password,
+          role: data.role,
+        }),
+      });
+
+      if (candidate.status === 404) {
+        continue;
+      }
+
+      response = candidate;
+      break;
+    }
+
+    if (!response) {
+      return { ok: false, error: "Sign-up endpoint not found on backend" };
+    }
+
+    await applyBackendResponseCookies(response);
+
+    if (!response.ok) {
+      const { json, text } = await readResponseBody(response);
+      const backendMessage =
+        (typeof json?.message === "string" && json.message) ||
+        (typeof json?.error === "string" && json.error) ||
+        text ||
+        `Register failed (${response.status})`;
+
+      return { ok: false, error: backendMessage };
+    }
+
+    const { json } = await readResponseBody(response);
+    const userId =
+      (json?.user as Record<string, unknown> | undefined)?.id ??
+      ((json?.data as Record<string, unknown> | undefined)?.user as Record<string, unknown> | undefined)
+        ?.id ??
+      json?.id;
+
+    if (typeof userId === "string" && userId.length > 0) {
+      await migrateGuestToUser(userId);
+      return { ok: true, userId };
+    }
+
+    const sessionUser = await getBackendCurrentUser();
+    if (sessionUser?.id) {
+      await migrateGuestToUser(sessionUser.id);
+      return { ok: true, userId: sessionUser.id };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Cannot connect to auth backend" };
   }
-  return { ok: true, userId: res.user?.id };
 }
 
 const signInSchema = z.object({
@@ -89,34 +167,77 @@ const signInSchema = z.object({
   password: passwordSchema,
 });
 
-export async function signIn(formData: FormData) {
+export async function signIn(formData: FormData): Promise<AuthActionResult> {
   const rawData = {
     email: formData.get('email') as string,
     password: formData.get('password') as string,
+  };
+
+  const parsed = signInSchema.safeParse(rawData);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: issue?.message ?? "Invalid sign-in input" };
   }
 
-  const data = signInSchema.parse(rawData);
+  const data = parsed.data;
 
-  const res = await auth.api.signInEmail({
-    body: {
-      email: data.email,
-      password: data.password,
-    },
-  });
+  try {
+    const loginEndpoints = ["/api/users/login", "/api/auth/login"];
+    let response: Response | null = null;
 
-  if (res.user?.id) {
-    await migrateGuestToUser(res.user.id);
+    for (const endpoint of loginEndpoints) {
+      const candidate = await backendAuthRequest(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      });
+
+      if (candidate.status === 404) {
+        continue;
+      }
+
+      response = candidate;
+      break;
+    }
+
+    if (!response) {
+      return { ok: false, error: "Sign-in endpoint not found on backend" };
+    }
+
+    await applyBackendResponseCookies(response);
+
+    if (!response.ok) {
+      const { json, text } = await readResponseBody(response);
+      const message =
+        (typeof json?.message === "string" && json.message) ||
+        (typeof json?.error === "string" && json.error) ||
+        text ||
+        `Sign in failed (${response.status})`;
+
+      return { ok: false, error: message };
+    }
+
+    const sessionUser = await getBackendCurrentUser();
+    if (sessionUser?.id) {
+      await migrateGuestToUser(sessionUser.id);
+      return { ok: true, userId: sessionUser.id };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Cannot connect to auth backend" };
   }
-  return { ok: true, userId: res.user?.id };
 }
 
 export async function getCurrentUser() {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    })
-
-    return session?.user ?? null;
+    return await getBackendCurrentUser();
   } catch (e) {
     console.log(e);
     return null;
@@ -124,23 +245,40 @@ export async function getCurrentUser() {
 }
 
 export async function signOut() {
-  await auth.api.signOut({ headers: {} });
+  const logoutEndpoints = ["/api/users/logout", "/api/auth/logout"];
+
+  for (const endpoint of logoutEndpoints) {
+    const response = await backendAuthRequest(endpoint, { method: "POST" });
+
+    if (response.status === 404) {
+      continue;
+    }
+
+    await applyBackendResponseCookies(response);
+    break;
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.delete("token");
+
   return { ok: true };
 }
 
 export async function mergeGuestCartWithUserCart() {
-  const session = await auth.api.getSession({
-    headers: await headers()
-  });
+  const session = await getBackendCurrentUser();
 
-  if (session?.user?.id) {
-    await migrateGuestToUser(session.user.id);
+  if (session?.id) {
+    await migrateGuestToUser(session.id);
   }
 
   return { ok: true };
 }
 
 async function migrateGuestToUser(userId: string) {
+  if (!isUuid(userId)) {
+    return;
+  }
+
   await mergeGuestCartToUser(userId);
 
   const cookieStore = await cookies();

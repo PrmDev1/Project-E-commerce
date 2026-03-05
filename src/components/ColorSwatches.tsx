@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { Check } from "lucide-react";
 import { useVariantStore } from "@/store/variant";
 
@@ -18,7 +17,8 @@ function firstValidImage(images: string[]) {
 
 export default function ColorSwatches({ productId, variants, className = "" }: ColorSwatchesProps) {
   const setSelected = useVariantStore((s) => s.setSelected);
-  const selected = useVariantStore((s) => s.getSelected(productId, 0));
+  const selectedRaw = useVariantStore((s) => s.getSelected(productId, 0));
+  const selected = Math.max(0, Math.min(selectedRaw, Math.max(variants.length - 1, 0)));
 
   return (
     <div className={`flex flex-wrap gap-3 ${className}`} role="listbox" aria-label="Choose color">
@@ -37,7 +37,8 @@ export default function ColorSwatches({ productId, variants, className = "" }: C
               isActive ? "ring-[--color-dark-500]" : "hover:ring-dark-500"
             }`}
           >
-            <Image src={src} alt={v.color} fill sizes="120px" className="object-cover" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt={v.color} className="h-full w-full object-cover" loading="lazy" />
             {isActive && (
               <span className="absolute right-1 top-1 rounded-full bg-light-100 p-1">
                 <Check className="h-4 w-4 text-dark-900" />

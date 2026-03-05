@@ -1,5 +1,7 @@
-import Image from "next/image";
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export type BadgeTone = "red" | "green" | "orange";
 
@@ -34,8 +36,18 @@ export default function Card({
   badge,
   className = "",
 }: CardProps) {
+  const [resolvedImageSrc, setResolvedImageSrc] = useState(imageSrc);
+
+  useEffect(() => {
+    setResolvedImageSrc(imageSrc);
+  }, [imageSrc]);
+
   const displayPrice =
-    price === undefined ? undefined : typeof price === "number" ? `$${price.toFixed(2)}` : price;
+    price === undefined
+      ? undefined
+      : typeof price === "number"
+        ? new Intl.NumberFormat("en-US", { style: "currency", currency: "THB" }).format(price)
+        : price;
   const content = (
     <article
       className={`group rounded-xl bg-light-100 ring-1 ring-light-300 transition-colors hover:ring-dark-500 ${className}`}
@@ -48,12 +60,13 @@ export default function Card({
             {badge.label}
           </span>
         )}
-        <Image
-          src={imageSrc}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={resolvedImageSrc}
           alt={imageAlt}
-          fill
-          sizes="(min-width: 1280px) 360px, (min-width: 1024px) 300px, (min-width: 640px) 45vw, 90vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          onError={() => setResolvedImageSrc("/shoes/shoe-5.avif")}
+          loading="lazy"
         />
       </div>
       <div className="p-4">

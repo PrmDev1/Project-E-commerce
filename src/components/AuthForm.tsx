@@ -4,14 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import SocialProviders from "./SocialProviders";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { AuthActionResult } from "@/lib/auth/actions";
 
 type Props = {
   mode: "sign-in" | "sign-up";
-  onSubmit: (formData: FormData) => Promise<{ ok: boolean; userId?: string } | void>;
+  onSubmit: (formData: FormData) => Promise<AuthActionResult | void>;
 };
 
 export default function AuthForm({ mode, onSubmit }: Props) {
   const [show, setShow] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
@@ -20,15 +22,22 @@ export default function AuthForm({ mode, onSubmit }: Props) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMessage(null);
 
     const formData = new FormData(e.currentTarget);
 
     try {
       const result = await onSubmit(formData);
 
-      if (result?.ok) router.push(redirectTo);
+      if (result?.ok) {
+        router.push(redirectTo);
+        return;
+      }
+
+      setErrorMessage(result?.error ?? "Authentication failed");
     } catch (e) {
       console.log("error", e);
+      setErrorMessage("Authentication failed");
     }
   }
 
@@ -67,17 +76,36 @@ export default function AuthForm({ mode, onSubmit }: Props) {
       >
         {mode === "sign-up" && (
           <div className="space-y-1">
-            <label htmlFor="name" className="text-caption text-dark-900">
-              Name
+            <label htmlFor="username" className="text-caption text-dark-900">
+              Username
             </label>
             <input
-              id="name"
-              name="name"
+              id="username"
+              name="username"
               type="text"
-              placeholder="Enter your name"
+              placeholder="john_doe"
               className="w-full rounded-xl border border-light-300 bg-light-100 px-4 py-3 text-body text-dark-900 placeholder:text-dark-500 focus:outline-none focus:ring-2 focus:ring-dark-900/10"
-              autoComplete="name"
+              autoComplete="username"
+              required
             />
+          </div>
+        )}
+
+        {mode === "sign-up" && (
+          <div className="space-y-1">
+            <label htmlFor="role" className="text-caption text-dark-900">
+              Role
+            </label>
+            <select
+              id="role"
+              name="role"
+              defaultValue="user"
+              className="w-full rounded-xl border border-light-300 bg-light-100 px-4 py-3 text-body text-dark-900 focus:outline-none focus:ring-2 focus:ring-dark-900/10"
+              required
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
         )}
 
@@ -128,6 +156,10 @@ export default function AuthForm({ mode, onSubmit }: Props) {
         >
           {mode === "sign-in" ? "Sign In" : "Sign Up"}
         </button>
+
+        {errorMessage && (
+          <p className="text-center text-footnote text-red-600">{errorMessage}</p>
+        )}
 
         {mode === "sign-up" && (
           <p className="text-center text-footnote text-dark-700">

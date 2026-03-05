@@ -110,10 +110,10 @@ export function parseFilterParams(sp: Record<string, string | string[] | undefin
   const search = getStr("search")?.trim() || undefined;
 
   const genderSlugs = getArr("gender").map((s) => s.toLowerCase());
-  const sizeSlugs = getArr("size").map((s) => s.toLowerCase());
-  const colorSlugs = getArr("color").map((s) => s.toLowerCase());
+  const sizeSlugs: string[] = [];
+  const colorSlugs: string[] = [];
   const brandSlugs = getArr("brand").map((s) => s.toLowerCase());
-  const categorySlugs = getArr("category").map((s) => s.toLowerCase());
+  const categorySlugs: string[] = [];
 
   const priceRangesStr = getArr("price");
   const priceRanges: Array<[number | undefined, number | undefined]> = priceRangesStr
@@ -129,9 +129,24 @@ export function parseFilterParams(sp: Record<string, string | string[] | undefin
     .filter(() => true);
 
   const priceMin = getStr("priceMin") ? Number(getStr("priceMin")) : undefined;
-  const priceMax = getStr("priceMax") ? Number(getStr("priceMax")) : undefined;
 
-  const sortParam = getStr("sort");
+  const rawPriceMax = getStr("priceMax");
+  let priceMax = rawPriceMax ? Number(rawPriceMax) : undefined;
+  if (priceMax !== undefined && Number.isNaN(priceMax)) {
+    priceMax = undefined;
+  }
+
+  if (priceMax === undefined && priceRanges.length > 0) {
+    const maxCandidates = priceRanges
+      .map(([, max]) => max)
+      .filter((max): max is number => typeof max === "number" && !Number.isNaN(max));
+
+    if (maxCandidates.length > 0) {
+      priceMax = Math.max(...maxCandidates);
+    }
+  }
+
+  const sortParam = getStr("sort") ?? getStr("sortBy");
   const sort: NormalizedProductFilters["sort"] =
     sortParam === "price_asc" || sortParam === "price_desc" || sortParam === "newest" || sortParam === "featured"
       ? sortParam

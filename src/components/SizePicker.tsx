@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useVariantStore } from "@/store/variant";
 
 const SIZES = ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12"];
 
 export interface SizePickerProps {
+  productId: string;
   className?: string;
 }
 
-export default function SizePicker({ className = "" }: SizePickerProps) {
-  const [selected, setSelected] = useState<string | null>(null);
+export default function SizePicker({ productId, className = "" }: SizePickerProps) {
+  const selected = useVariantStore((state) => state.getSelectedSize(productId, null));
+  const setSelectedSize = useVariantStore((state) => state.setSelectedSize);
+  const isSizeMissing = !selected;
 
   return (
     <div className={`flex flex-col gap-3 ${className}`}>
@@ -20,23 +23,27 @@ export default function SizePicker({ className = "" }: SizePickerProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-        {SIZES.map((s) => {
-          const isActive = selected === s;
-          return (
-            <button
-              key={s}
-              onClick={() => setSelected(isActive ? null : s)}
-              className={`rounded-lg border px-3 py-3 text-center text-body transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[--color-dark-500] ${
-                isActive ? "border-dark-900 text-dark-900" : "border-light-300 text-dark-700 hover:border-dark-500"
-              }`}
-              aria-pressed={isActive}
-            >
-              {s}
-            </button>
-          );
-        })}
+      <div className={`rounded-xl border p-3 ${isSizeMissing ? "border-red-600" : "border-light-300"}`}>
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+          {SIZES.map((s) => {
+            const isActive = selected === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setSelectedSize(productId, isActive ? null : s)}
+                className={`rounded-lg border px-3 py-3 text-center text-body transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[--color-dark-500] ${
+                  isActive ? "border-dark-900 text-dark-900" : "border-light-300 text-dark-700 hover:border-dark-500"
+                }`}
+                aria-pressed={isActive}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {isSizeMissing && <p className="text-caption text-red-600">Please select your size.</p>}
     </div>
   );
 }

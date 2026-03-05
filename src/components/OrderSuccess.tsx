@@ -23,7 +23,7 @@ type Props = {
 function formatCents(cents: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: "THB",
   }).format(cents / 100);
 }
 

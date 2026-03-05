@@ -5,7 +5,7 @@ import { setParam } from "@/lib/utils/query";
 import { useMemo } from "react";
 
 const OPTIONS = [
-  { label: "Latest", value: "latest" },
+  { label: "Newest", value: "newest" },
   { label: "Featured", value: "featured" },
   { label: "Price (High → Low)", value: "price_desc" },
   { label: "Price (Low → High)", value: "price_asc" },
@@ -16,11 +16,12 @@ export default function Sort() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = useMemo(() => `?${searchParams.toString()}`, [searchParams]);
-  const selected = searchParams.get("sortBy") ?? searchParams.get("sort") ?? "latest";
+  const selected = searchParams.get("sort") ?? searchParams.get("sortBy") ?? "newest";
 
   const onChange = (value: string) => {
-    const withSort = setParam(pathname, search, "sortBy", value);
-    const withPageReset = setParam(pathname, new URL(withSort, "http://dummy").search, "page", "1");
+    const withSort = setParam(pathname, search, "sort", value);
+    const noLegacySortBy = setParam(pathname, new URL(withSort, "http://dummy").search, "sortBy", null);
+    const withPageReset = setParam(pathname, new URL(noLegacySortBy, "http://dummy").search, "page", "1");
     router.push(withPageReset, { scroll: false });
   };
 

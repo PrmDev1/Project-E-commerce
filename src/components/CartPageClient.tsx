@@ -1,6 +1,4 @@
 "use client";
-
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useTransition } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
@@ -21,7 +19,7 @@ type Props = {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: "THB",
   }).format(value);
 
 export default function CartPageClient({ initialCart }: Props) {
@@ -100,7 +98,8 @@ export default function CartPageClient({ initialCart }: Props) {
                 <div className="flex gap-4">
                   <Link href={`/products/${item.productId}`} className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-light-200">
                     {item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.productTitle} fill className="object-cover" sizes="96px" />
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={item.imageUrl} alt={item.productTitle} className="h-full w-full object-cover" loading="lazy" />
                     ) : (
                       <div className="h-full w-full" />
                     )}
@@ -114,7 +113,7 @@ export default function CartPageClient({ initialCart }: Props) {
                         </Link>
                         <p className="text-caption text-dark-700">{item.productSubtitle}</p>
                         <p className="text-caption text-dark-700">
-                          {item.colorName ?? "Default"} · {item.sizeName ?? "One Size"}
+                          {item.colorName ?? "Size"} : {item.sizeName ?? "One Size"}
                         </p>
                       </div>
                       <p className="text-body-medium text-dark-900">{formatCurrency(item.lineTotal)}</p>
