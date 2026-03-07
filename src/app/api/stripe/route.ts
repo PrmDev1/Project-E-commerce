@@ -1,6 +1,5 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { createOrder } from "@/lib/actions/orders";
 import { stripe } from "@/lib/stripe/client";
 
 export const runtime = "nodejs";
@@ -27,7 +26,10 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        await createOrder(session.id, session.metadata?.userId || undefined);
+        console.log("Stripe checkout.session.completed received", {
+          sessionId: session.id,
+          userId: session.metadata?.userId,
+        });
         break;
       }
       case "payment_intent.payment_failed": {

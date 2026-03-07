@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import SocialProviders from "./SocialProviders";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AuthActionResult } from "@/lib/auth/actions";
 
@@ -58,16 +57,6 @@ export default function AuthForm({ mode, onSubmit }: Props) {
             ? "Sign in to continue your journey"
             : "Create your account to start your fitness journey"}
         </p>
-      </div>
-
-      <SocialProviders mode={mode} />
-
-      <div className="flex items-center gap-4">
-        <hr className="h-px w-full border-0 bg-light-300" />
-        <span className="shrink-0 text-caption text-dark-700">
-          Or {mode === "sign-in" ? "sign in" : "sign up"} with
-        </span>
-        <hr className="h-px w-full border-0 bg-light-300" />
       </div>
 
       <form

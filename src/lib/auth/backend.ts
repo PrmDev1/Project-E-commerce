@@ -27,8 +27,6 @@ type BackendUserListItem = {
   role?: string;
 };
 
-const AUTH_BACKEND_URL = process.env.NEXT_PUBLIC_AUTH_BACKEND_URL ?? "http://localhost:5000";
-
 type ParsedSetCookie = {
   name: string;
   value: string;
@@ -177,7 +175,8 @@ async function buildCookieHeader() {
 
 export async function backendAuthRequest(path: string, init: RequestInit = {}) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = `${AUTH_BACKEND_URL}${normalizedPath}`;
+  const backendBaseUrl = process.env.NEXT_PUBLIC_AUTH_BACKEND_URL ?? "http://localhost:5000";
+  const url = `${backendBaseUrl}${normalizedPath}`;
   const requestCookieHeader = await buildCookieHeader();
 
   const headers = new Headers(init.headers);

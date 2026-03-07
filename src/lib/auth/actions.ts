@@ -2,9 +2,6 @@
 
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { guests } from "@/lib/db/schema/index";
-import { and, eq, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { mergeGuestCartToUser } from "@/lib/actions/cart";
 import {
@@ -32,10 +29,6 @@ const emailSchema = z.string().email();
 const passwordSchema = z.string().min(8).max(128);
 const usernameSchema = z.string().min(3).max(100);
 const roleSchema = z.enum(["user", "admin"]);
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const isUuid = (value: string) => UUID_REGEX.test(value);
 
 export async function createGuestSession() {
   const cookieStore = await cookies();
@@ -45,13 +38,6 @@ export async function createGuestSession() {
   }
 
   const sessionToken = randomUUID();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + COOKIE_OPTIONS.maxAge * 1000);
-
-  await db.insert(guests).values({
-    sessionToken,
-    expiresAt,
-  });
 
   (await cookieStore).set("guest_session", sessionToken, COOKIE_OPTIONS);
   return { ok: true, sessionToken };
@@ -63,10 +49,6 @@ export async function guestSession() {
   if (!token) {
     return { sessionToken: null };
   }
-  const now = new Date();
-  await db
-    .delete(guests)
-    .where(and(eq(guests.sessionToken, token), lt(guests.expiresAt, now)));
 
   return { sessionToken: token };
 }
@@ -275,16 +257,10 @@ export async function mergeGuestCartWithUserCart() {
 }
 
 async function migrateGuestToUser(userId: string) {
-  if (!isUuid(userId)) {
-    return;
-  }
+  if (!userId) return;
 
   await mergeGuestCartToUser(userId);
 
   const cookieStore = await cookies();
-  const token = cookieStore.get("guest_session")?.value;
-  if (!token) return;
-
-  await db.delete(guests).where(eq(guests.sessionToken, token));
   cookieStore.delete("guest_session");
 }

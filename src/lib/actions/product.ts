@@ -114,7 +114,6 @@ export type RecommendedProduct = {
 
 const DEFAULT_IMAGE = "/shoes/shoe-1.avif";
 const BACKEND_BASE_URL =
-  process.env.AUTH_BACKEND_URL ??
   process.env.NEXT_PUBLIC_AUTH_BACKEND_URL ??
   "http://localhost:5000";
 

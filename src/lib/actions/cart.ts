@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { backendAuthRequest, getBackendCurrentUser, readResponseBody } from "@/lib/auth/backend";
 
 const BACKEND_BASE_URL =
-  process.env.AUTH_BACKEND_URL ?? process.env.NEXT_PUBLIC_AUTH_BACKEND_URL ?? "http://localhost:5000";
+  process.env.NEXT_PUBLIC_AUTH_BACKEND_URL ?? "http://localhost:5000";
 
 export type CartItemView = {
   cartItemId: string;
