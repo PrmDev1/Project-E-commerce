@@ -60,7 +60,7 @@ const bottomLinks: FooterLink[] = [
   { label: "Guides", href: "#" },
   { label: "Terms of Sale", href: "#" },
   { label: "Terms of Use", href: "#" },
-  { label: "Nike Privacy Policy", href: "#" },
+  { label: "Meaw Privacy Policy", href: "#" },
 ];
 
 export default function Footer() {
@@ -73,8 +73,8 @@ export default function Footer() {
           <div className="shrink-0">
             <Link href="/" aria-label="Home">
               <Image
-                src="/logo.svg"
-                alt="Nike"
+                src="/logocat.png"
+                alt="Meaw"
                 width={80}
                 height={29}
                 className="h-auto w-[60px] lg:w-[80px]"
@@ -133,7 +133,7 @@ export default function Footer() {
           {/* Location & copyright */}
           <p className="text-footnote font-[var(--text-footnote--font-weight)] leading-[var(--text-footnote--line-height)] text-dark-500">
             <span className="mr-1">📍</span>
-            Croatia &nbsp;&copy; 2025 Nike, Inc. All Rights Reserved
+            ThaiLand &nbsp;&copy; 2025 Meaw, Inc. All Rights Reserved
           </p>
 
           {/* Legal links */}
